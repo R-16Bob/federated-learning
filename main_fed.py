@@ -3,6 +3,7 @@
 # Python version: 3.6
 
 import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import copy
@@ -16,7 +17,6 @@ from models.Update import LocalUpdate
 from models.Nets import MLP, CNNMnist, CNNCifar
 from models.Fed import FedAvg
 from models.test import test_img
-
 
 if __name__ == '__main__':
     # parse args
@@ -34,7 +34,8 @@ if __name__ == '__main__':
         else:
             dict_users = mnist_noniid(dataset_train, args.num_users)
     elif args.dataset == 'cifar':
-        trans_cifar = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+        trans_cifar = transforms.Compose(
+            [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
         dataset_train = datasets.CIFAR10('../data/cifar', train=True, download=True, transform=trans_cifar)
         dataset_test = datasets.CIFAR10('../data/cifar', train=False, download=True, transform=trans_cifar)
         if args.iid:
@@ -63,7 +64,25 @@ if __name__ == '__main__':
     # copy weights
     w_glob = net_glob.state_dict()
 
-    # training
+    """
+    进行模型的训练过程。
+    主要包括以下几个步骤：
+    1. 初始化训练过程的相关变量。
+    2. 根据是否所有客户端参与训练，初始化局部模型参数。
+    3. 对于每个训练轮次，随机选择一定数量的客户端进行本地更新。
+    4. 根据选择的客户端，分别进行本地训练，并收集各个客户端的训练损失。
+    5. 使用联邦平均算法（FedAvg）更新全局模型参数。
+    6. 将全局模型参数复制到net_glob模型中。
+    7. 打印当前轮次的平均损失，并将其添加到训练损失列表中。
+
+    :param args: 包含训练过程的各种参数，例如：客户端数量、参与训练的客户端比例、训练轮次等。
+    :param dataset_train: 训练数据集。
+    :param dict_users: 包含每个客户端的数据索引。
+    :param net_glob: 全局模型。
+    :return: None
+    """
+
+    # 初始化训练过程的相关变量
     loss_train = []
     cv_loss, cv_acc = [], []
     val_loss_pre, counter = 0, 0
@@ -71,30 +90,34 @@ if __name__ == '__main__':
     best_loss = None
     val_acc_list, net_list = [], []
 
-    if args.all_clients: 
+    # 根据是否所有客户端参与训练，初始化局部模型参数
+    if args.all_clients:
         print("Aggregation over all clients")
         w_locals = [w_glob for i in range(args.num_users)]
     for iter in range(args.epochs):
         loss_locals = []
         if not args.all_clients:
             w_locals = []
+        # 随机选择参与训练的客户端
         m = max(int(args.frac * args.num_users), 1)
         idxs_users = np.random.choice(range(args.num_users), m, replace=False)
         for idx in idxs_users:
+            # 对每个选择的客户端进行本地更新
             local = LocalUpdate(args=args, dataset=dataset_train, idxs=dict_users[idx])
             w, loss = local.train(net=copy.deepcopy(net_glob).to(args.device))
+            # 根据是否所有客户端参与训练，更新局部模型参数
             if args.all_clients:
                 w_locals[idx] = copy.deepcopy(w)
             else:
                 w_locals.append(copy.deepcopy(w))
             loss_locals.append(copy.deepcopy(loss))
-        # update global weights
+        # 使用联邦平均算法更新全局模型参数
         w_glob = FedAvg(w_locals)
 
-        # copy weight to net_glob
+        # 将全局模型参数复制到net_glob模型中
         net_glob.load_state_dict(w_glob)
 
-        # print loss
+        # 打印当前轮次的平均损失，并将其添加到训练损失列表中
         loss_avg = sum(loss_locals) / len(loss_locals)
         print('Round {:3d}, Average loss {:.3f}'.format(iter, loss_avg))
         loss_train.append(loss_avg)
