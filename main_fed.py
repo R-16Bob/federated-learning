@@ -129,9 +129,15 @@ if __name__ == '__main__':
     plt.savefig('./save/fed_{}_{}_{}_C{}_iid{}.png'.format(args.dataset, args.model, args.epochs, args.frac, args.iid))
 
     # testing
-    net_glob.eval()
-    acc_train, loss_train = test_img(net_glob, dataset_train, args)
-    acc_test, loss_test = test_img(net_glob, dataset_test, args)
-    print("Training accuracy: {:.2f}".format(acc_train))
-    print("Testing accuracy: {:.2f}".format(acc_test))
+    def evaluate_model(net_glob, dataset_train, dataset_test, args):
+        net_glob.eval()  # 将模型设置为评估模式
+
+        # 对训练集进行评估
+        acc_train, loss_train = test_img(net_glob, dataset_train, args)
+        # 对测试集进行评估
+        acc_test, loss_test = test_img(net_glob, dataset_test, args)
+
+        # 打印训练集和测试集的准确率
+        print("Training accuracy: {:.2f}".format(acc_train))
+        print("Testing accuracy: {:.2f}".format(acc_test))
 
